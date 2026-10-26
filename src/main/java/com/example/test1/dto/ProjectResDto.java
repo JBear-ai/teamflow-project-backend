@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 public class ProjectResDto {
+    private com.example.test1.entity.ProjectRole myRole;
     private Long id;
     private String name;
     private String description;

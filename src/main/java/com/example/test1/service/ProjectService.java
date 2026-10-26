@@ -19,6 +19,8 @@ import java.util.List;
 public class ProjectService {
 
     private final ProjectRepository projectRepository;
+    private final ProjectAccess access;
+    private final com.example.test1.repository.ProjectMembershipRepository memberships;
     private final MemberRepository memberRepository;
 
     // 프로젝트 생성
@@ -33,45 +35,53 @@ public class ProjectService {
         project.setTargetEndDate(dto.getTargetEndDate());
 
         Project savedProject = projectRepository.save(project);
+        memberships.save(new com.example.test1.entity.ProjectMembership(savedProject, creator, com.example.test1.entity.ProjectRole.LEAD));
 
-        return convertToDto(savedProject);
+        return convertToDto(savedProject, com.example.test1.entity.ProjectRole.LEAD);
     }
 
     // 프로젝트 전체 조회
     @Transactional(readOnly = true)
     public List<ProjectResDto> getProjectList(String email) {
-        return projectRepository.findAllByCreator_IdOrderByIdDesc(currentMember(email).getId())
+        return memberships.findAllByMember_IdOrderByProject_IdDesc(currentMember(email).getId())
                 .stream()
-                .map(this::convertToDto)
+                .map(m -> convertToDto(m.getProject(), m.getRole()))
                 .toList();
     }
 
     // 프로젝트 상세 조회
     @Transactional(readOnly = true)
     public ProjectResDto getProject(Long id, String email) {
-        Project project = ownedProject(id, email);
+        var membership = access.require(id, email, false);
+        Project project = membership.getProject();
 
-        return convertToDto(project);
+        return convertToDto(project, membership.getRole());
     }
 
     // 프로젝트 수정
     @Transactional
     public ProjectResDto updateProject(Long id, ProjectCreateReqDto dto, String email) {
 
-        Project project = ownedProject(id, email);
+        var membership = access.require(id, email, true);
+        ProjectAccess.allowed(membership.getRole() != com.example.test1.entity.ProjectRole.MEMBER);
+        Project project = membership.getProject();
 
         project.setName(dto.getName());
         project.setDescription(dto.getDescription());
         project.setTargetEndDate(dto.getTargetEndDate());
 
-        return convertToDto(project);
+        return convertToDto(project, membership.getRole());
     }
 
     // 프로젝트 삭제
     @Transactional
     public void deleteProject(Long id, String email) {
 
-        Project project = ownedProject(id, email);
+        var membership = access.require(id, email, true);
+        ProjectAccess.allowed(membership.getRole() == com.example.test1.entity.ProjectRole.LEAD);
+        Project project = membership.getProject();
+        memberships.deleteAllByProject_Id(id);
+        memberships.flush();
 
         projectRepository.delete(project);
     }
@@ -82,16 +92,11 @@ public class ProjectService {
                 new ResponseStatusException(HttpStatus.UNAUTHORIZED));
     }
 
-    private Project ownedProject(Long id, String email) {
-        return projectRepository.findByIdAndCreator_Id(id, currentMember(email).getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "프로젝트가 존재하지 않습니다."));
-    }
-
     // Entity → DTO 변환
-    private ProjectResDto convertToDto(Project project) {
+    private ProjectResDto convertToDto(Project project, com.example.test1.entity.ProjectRole role) {
         ProjectResDto dto = new ProjectResDto();
 
+        dto.setMyRole(role);
         dto.setId(project.getId());
         dto.setName(project.getName());
         dto.setDescription(project.getDescription());

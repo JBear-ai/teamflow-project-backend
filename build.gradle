@@ -41,5 +41,8 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // Opting in/out of MySQL must invalidate Gradle's up-to-date test result.
+    inputs.property('mysqlTestUrl', System.getenv('TEAMFLOW_MYSQL_TEST_URL') ?: '')
+    inputs.property('mysqlMigrationUrl', System.getenv('TEAMFLOW_MYSQL_MIGRATION_URL') ?: '')
 }
 
