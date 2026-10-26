@@ -20,6 +20,12 @@ public class Project {
     @Column(nullable = false, length = 100)
     private String name;
 
+    // Nullable for preserved legacy rows; new API creations always set the creator.
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "creator_id", nullable = true, updatable = false,
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
+    private Member creator;
+
     @Column(length = 2000)
     private String description;
 
